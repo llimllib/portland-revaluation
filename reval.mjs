@@ -94,7 +94,7 @@ async function getParcel(page, parcel) {
 
     let result;
     try {
-      result = await getParcel(parcel);
+      result = await getParcel(page, parcel);
     } catch (e) {
       histories[parcel] = e;
       sleep(500);

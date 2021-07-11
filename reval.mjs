@@ -2,8 +2,6 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 import puppeteer from 'puppeteer';
 
-  debugger;
-
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);

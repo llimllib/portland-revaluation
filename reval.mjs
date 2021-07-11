@@ -2,6 +2,12 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 import puppeteer from 'puppeteer';
 
+// time to wait for requests, in ms
+const TIMEOUT = 2000;
+
+// amount of time to sleep between requests
+const SLEEP = 1000;
+
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -19,7 +25,7 @@ async function getParcel(page, parcel) {
 
   await page.goto(
     "https://assessors.portlandmaine.gov/search/commonsearch.aspx?mode=parid",
-    { waitUntil: "domcontentloaded", timeout: 2000 }
+    { waitUntil: "domcontentloaded", timeout: TIMEOUT }
   );
 
   await page.waitForSelector("#btSearch");
@@ -30,7 +36,7 @@ async function getParcel(page, parcel) {
   await page.click("#btSearch");
   await page.waitForNavigation({
     waitUntil: "domcontentloaded",
-    timeout: 2000,
+    timeout: TIMEOUT,
   });
 
   if (
@@ -44,7 +50,7 @@ async function getParcel(page, parcel) {
   // go to assessment history
   await page.waitForSelector(
     "#sidemenu > .navigation > .unsel:nth-child(8) > a > span",
-    { timeout: 2000 }
+    { timeout: TIMEOUT }
   );
   await page.click(
     "#sidemenu > .navigation > .unsel:nth-child(8) > a > span"
@@ -74,7 +80,7 @@ async function getParcel(page, parcel) {
 
   await page.goto(
     "https://assessors.portlandmaine.gov/search/commonsearch.aspx?mode=parid",
-    { waitUntil: "domcontentloaded", timeout: 2000 }
+    { waitUntil: "domcontentloaded", timeout: TIMEOUT }
   );
   await agreeToDisclaimer(page);
 
@@ -97,14 +103,14 @@ async function getParcel(page, parcel) {
       result = await getParcel(page, parcel);
     } catch (e) {
       histories[parcel] = e;
-      sleep(500);
+      await sleep(SLEEP);
       continue;
     }
 
     histories[parcel] = result;
     writeFileSync(historyFile, JSON.stringify(histories));
 
-    sleep(500);
+    await sleep(SLEEP);
   }
 
   writeFileSync(historyFile, JSON.stringify(histories));

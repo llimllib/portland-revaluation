@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer';
 const TIMEOUT = 2000;
 
 // amount of time to sleep between requests
-const SLEEP = 1000;
+const SLEEP = 1500;
 
 function sleep(ms) {
   return new Promise((resolve) => {

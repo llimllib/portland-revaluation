@@ -9,3 +9,5 @@ The code is gross and the naming is terrible, but here's roughly what the parts 
 I have the `run.py`/`reval.mjs` split because it seems that any one process running for too long starts to have errors, so I settled on just launching a new process every 15 parcels to keep things moving. It's gross but it works(ish).
 
 For some reason that I cannot understand, neither puppeteer script works in headless mode, so I'm just leaving my spare computer running on the side, popping up all kinds of windows to do the scraping.
+
+Currently `property_data.json` has data on more than 8000 properties, about 1/3 of the total parcel IDs I was able to scrape

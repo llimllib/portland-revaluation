@@ -1,12 +1,12 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from "fs";
 
-import puppeteer from 'puppeteer';
+import puppeteer from "puppeteer";
 
 // time to wait for requests, in ms
 const TIMEOUT = 2000;
 
 // amount of time to sleep between requests
-const SLEEP = 1500;
+const SLEEP = 500;
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -39,32 +39,34 @@ async function getParcel(page, parcel) {
     timeout: TIMEOUT,
   });
 
-  if (
-    page.url() ==
-    "https://assessors.portlandmaine.gov/search/CommonSearch.aspx?mode=PARID"
-  ) {
-    console.log("error getting", parcel);
-    return new Promise((_, reject) => { reject("error getting history") });
-  }
+  // get the summary data on the parcel
+  let parcelData = await page.$$eval("#Parcel tr", trs => trs.map(tr => Array.from(tr.querySelectorAll("td")).map(td => td.innerText)))
+  let ownerData = await page.$$eval("#Owners tr", trs => trs.map(tr => Array.from(tr.querySelectorAll("td")).map(td => td.innerText)))
 
   // go to assessment history
   await page.waitForSelector(
     "#sidemenu > .navigation > .unsel:nth-child(8) > a > span",
     { timeout: TIMEOUT }
   );
-  await page.click(
-    "#sidemenu > .navigation > .unsel:nth-child(8) > a > span"
-  );
+  await page.click("#sidemenu > .navigation > .unsel:nth-child(8) > a > span");
 
   // the stupid table has an id with a space in it
-  await page.waitForSelector("[id='Assessment History'] tr");
-  let rows = await page.$$eval("[id='Assessment History'] tr", (trs) =>
+  await page.waitForSelector("[id='Assessment History'] tr", {
+    timeout: TIMEOUT,
+  });
+  let assessments = await page.$$eval("[id='Assessment History'] tr", (trs) =>
     trs.map((tr) =>
       Array.from(tr.querySelectorAll("td")).map((td) => td.innerText)
     )
   );
 
-  return new Promise((resolve) => { resolve(rows) })
+  return new Promise((resolve) => {
+    resolve({
+      assessments: assessments,
+      parcelData: parcelData,
+      ownerData: ownerData,
+    });
+  });
 }
 
 (async () => {
@@ -84,17 +86,17 @@ async function getParcel(page, parcel) {
   );
   await agreeToDisclaimer(page);
 
-
-  const historyFile = "./histories.json"
-  let histories;
-  if (existsSync(historyFile)) {
-    histories = await JSON.parse(readFileSync(historyFile, "utf8"));
+  const propertyData = "./property_data.json";
+  let properties;
+  let currentSleep = SLEEP;
+  if (existsSync(propertyData)) {
+    properties = await JSON.parse(readFileSync(propertyData, "utf8"));
   } else {
-    histories = {};
+    properties = {};
   }
 
-  for (const parcel in parcels) {
-    if (histories.hasOwnProperty(parcel)) {
+  for (const parcel of process.argv.slice(2)) {
+    if (properties.hasOwnProperty(parcel)) {
       continue;
     }
 
@@ -102,18 +104,27 @@ async function getParcel(page, parcel) {
     try {
       result = await getParcel(page, parcel);
     } catch (e) {
-      histories[parcel] = e;
-      await sleep(SLEEP);
+      properties[parcel] = e;
+      console.log(currentSleep, e);
+      await sleep(currentSleep);
+
       continue;
     }
 
-    histories[parcel] = result;
-    writeFileSync(historyFile, JSON.stringify(histories));
+    result["parcel_id"] = parcels[parcel][0];
+    result["owner1"] = parcels[parcel][1];
+    result["owner2"] = parcels[parcel][2];
+    result["address"] = parcels[parcel][3];
+    result["parcel_type"] = parcels[parcel][4];
 
-    await sleep(SLEEP);
+    properties[parcel] = result;
+    writeFileSync(propertyData, JSON.stringify(properties, null, 2));
+
+    currentSleep = SLEEP;
+    await sleep(currentSleep);
   }
 
-  writeFileSync(historyFile, JSON.stringify(histories));
+  writeFileSync(propertyData, JSON.stringify(properties, null, 2));
 
   await browser.close();
 })();

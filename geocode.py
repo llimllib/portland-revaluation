@@ -46,7 +46,8 @@ for parcel_id, data in data.items():
     geodata[parcel_id]["geo"] = geocode(
         geodata[parcel_id]["parcelData"]["PropertyLocation"]
     )
-    json.dump(geodata, open("geodata.json", "w"), indent=2)
     n += 1
     if n % 100 == 0:
         print(n)
+        json.dump(geodata, open("geodata.json", "w"), indent=2)
+json.dump(geodata, open("geodata.json", "w"), indent=2)

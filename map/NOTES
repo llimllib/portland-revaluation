@@ -1,0 +1,22 @@
+Here's an example of pulling data out of natural earth files:
+
+https://github.com/topojson/world-atlas/blob/master/prepublish
+
+mapshaper is super handy: https://mapshaper.org/
+
+the bounds we want are:
+
+-70.34858099518858,43.629842751340156,-70.17342085592244,43.735588992622006
+-70.34858099518858 43.629842751340156 -70.17342085592244 43.735588992622006
+
+here's an OGR command that clips into a shapefile:
+
+ogr2ogr -clipsrc -70.34858099518858 43.629842751340156 -70.17342085592244 43.735588992622006 Portland_ogr.shp mainedotgov/Maine_Boundaries_Town_and_Townships_Lines.shp
+
+ok, reading https://medium.com/@mbostock/command-line-cartography-part-3-1158e4c55a1e and trying bostock's stuff
+
+npm install -g shapefile topojson d3-geo-projection
+asdf reshim
+geo2topo Portland_ogr.geojson > portland.topojson
+
+oh hey I actually solved my problem by just... adding a fill=none style so I'm going to drop this line for now

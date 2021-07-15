@@ -4,6 +4,8 @@
 // * responsive map size
 // * verify tap works on phone
 // * figure out how to handle condos - ex. 99 Brackett st is 3 units but currently only showing one
+// * use address from assessor, not from geocoder
+// * deploy easily
 const settings = {
   width: 1024,
   height: 800,
@@ -33,8 +35,7 @@ function map(portlandGeo, data) {
     [
       [0, 0],
       [settings.width, settings.height],
-    ],
-    portlandGeo
+    ], portlandGeo
   );
 
   const zoom = d3.zoom().scaleExtent([1, 5]).on("zoom", zoomed);
@@ -147,8 +148,8 @@ function map(portlandGeo, data) {
 
 window.addEventListener("DOMContentLoaded", async (_evt) => {
   // TODO: simplify this - 650k is too big
-  const portlandGeo = await d3.json("portland_more_simplified.json");
-  const data = await d3.json("pts.json");
+  const portlandGeo = await d3.json("//cdn.billmill.org/static/reassess/portland.json");
+  const data = await d3.json("//cdn.billmill.org/static/reassess/pts.json");
   map(portlandGeo, data);
 });
 

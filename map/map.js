@@ -3,6 +3,7 @@
 // * flip lat and lng to be correct in the geodata
 // * responsive map size
 // * verify tooltip works on phone
+// * figure out how to handle condos - ex. 99 Brackett st is 3 units but currently only showing one
 const settings = {
   width: 1024,
   height: 800,
@@ -77,7 +78,7 @@ function map(portlandGeo, data) {
 
   data.forEach((d) => {
     // these are currently reversed by accident, lat is lng and vice versa
-    let pt = projection([d.geo.lat, d.geo.lng]);
+    let pt = projection([d.geo.lng, d.geo.lat]);
     d.geo.x = pt[0];
     d.geo.y = pt[1];
   });

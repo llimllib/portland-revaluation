@@ -1,8 +1,8 @@
 //TODO:
 // * slim down geojson
-// * mouseover
-//   * ugh need voronoi
 // * flip lat and lng to be correct in the geodata
+// * responsive map size
+// * verify tooltip works on phone
 const settings = {
   width: 1024,
   height: 800,

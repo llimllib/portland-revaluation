@@ -1,0 +1,3 @@
+Might want to use: https://github.com/makinacorpus/Leaflet.GeometryUtil
+
+to get the nearest point to the mouse, instead of requiring to be right over the point

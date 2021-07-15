@@ -2,7 +2,7 @@
 // * slim down geojson
 // * flip lat and lng to be correct in the geodata
 // * responsive map size
-// * verify tooltip works on phone
+// * verify tap works on phone
 // * figure out how to handle condos - ex. 99 Brackett st is 3 units but currently only showing one
 const settings = {
   width: 1024,
@@ -65,17 +65,6 @@ function map(portlandGeo, data) {
   // add a point for each parcel
   const pointsG = svg.append("g").attr("class", "parcels");
 
-  const tooltip = d3
-    .select("body")
-    .append("div")
-    .style("position", "absolute")
-    .style("z-index", "10")
-    .style("visibility", "hidden")
-    .style("padding", "10px")
-    .style("background", "rgba(0,0,0,0.6)")
-    .style("border-radius", "4px")
-    .style("color", "#fff");
-
   data.forEach((d) => {
     // these are currently reversed by accident, lat is lng and vice versa
     let pt = projection([d.geo.lng, d.geo.lat]);
@@ -99,18 +88,16 @@ function map(portlandGeo, data) {
     const nearest = delaunay.find(...p);
     //const nearest = delaunay.find(mx, my);
     const pt = voronoiCells[nearest][0];
-    tooltip
-      .html(
-        `<div>${pt.geo.full_name}
-<ul>
-  <li>2020 value: $${dol(pt["2020"].total)}</li>
-  <li>2021 value: $${dol(pt["2021"].total)}</li>
-  <li>2020 value: ${pct(pt.diff.total)}</li>
-</div>`
-      )
-      .style("visibility", "visible")
-      .style("top", e.pageY + 10 + "px")
-      .style("left", e.pageX + 10 + "px");
+    try {
+      const addr = pt.geo.full_name.match("(^.*), Portland")[1]
+      document.getElementById("address").innerText = addr;
+    } catch (e) {
+      document.getElementById("address").innerText = pt.geo.full_name;
+      console.log("Unable to parse address", pt.geo.full_name);
+    }
+    document.getElementById("value2020").innerText = dol(pt["2020"].total);
+    document.getElementById("value2021").innerText = dol(pt["2021"].total);
+    document.getElementById("diff").innerText = pct(pt.diff.total);
   });
 
   const points = pointsG
@@ -160,7 +147,7 @@ function map(portlandGeo, data) {
 
 window.addEventListener("DOMContentLoaded", async (_evt) => {
   // TODO: simplify this - 650k is too big
-  const portlandGeo = await d3.json("Portland.geojson");
+  const portlandGeo = await d3.json("portland_more_simplified.json");
   const data = await d3.json("pts.json");
   map(portlandGeo, data);
 });

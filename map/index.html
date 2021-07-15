@@ -1,10 +1,58 @@
 <html>
-  <head><title>Portland Reassessment Map</title>
+  <head>
+    <title>Portland Reassessment Map</title>
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="map.js" type="module"></script>
+    <style>
+      .infobox {
+        position: absolute;
+        width: 400px;
+        top: 20px;
+        left: 600px;
+        background: white;
+        border: 1px solid #aaa;
+        border-radius: 10px;
+      }
+      table {
+        width: 100%;
+        max-width: 640px;
+        border-spacing: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 18px;
+        padding: 13px;
+      }
+      text {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+      }
+      /* tbody tr:not(:last-child) td {
+        border-bottom: solid 1px #eee;
+      } */
+    </style>
   </head>
+
   <body>
     <div>
+      <div class="infobox">
+        <table>
+          <tr>
+            <td>address</td>
+            <td id="address"></td>
+          </tr>
+          <tr>
+            <td>2020 value</td>
+            <td id="value2020"></td>
+          </tr>
+          <tr>
+            <td>2021 value</td>
+            <td id="value2021"></td>
+          </tr>
+          <tr>
+            <td>diff</td>
+            <td id="diff"></td>
+          </tr>
+        </table>
+      </div>
       <svg id="canvas" width="1024" height="800"></svg>
     </div>
   </body>

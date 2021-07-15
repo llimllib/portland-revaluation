@@ -23,8 +23,8 @@ def geocode(addr):
 
         feat = data["features"][0]
         return {
-            "lat": feat["center"][0],
-            "lng": feat["center"][1],
+            "lng": feat["center"][0],
+            "lat": feat["center"][1],
             "full_name": feat["place_name"],
         }
     else:

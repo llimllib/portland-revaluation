@@ -21,6 +21,7 @@ for parcel, data in alldata.items():
         continue
     obj = {
         "parcel": parcel,
+        "address": data["parcelData"]["PropertyLocation"].title(),
         "2021": {
             "land": flt(y2021[1]),
             "building": flt(y2021[2]),
@@ -33,6 +34,8 @@ for parcel, data in alldata.items():
         },
         "geo": data["geo"],
     }
+
+    del obj["geo"]["full_name"]
 
     try:
         obj["diff"] = {

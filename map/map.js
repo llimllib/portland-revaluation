@@ -89,13 +89,7 @@ function map(portlandGeo, data) {
     const nearest = delaunay.find(...p);
     //const nearest = delaunay.find(mx, my);
     const pt = voronoiCells[nearest][0];
-    try {
-      const addr = pt.geo.full_name.match("(^.*), Portland")[1]
-      document.getElementById("address").innerText = addr;
-    } catch (e) {
-      document.getElementById("address").innerText = pt.geo.full_name;
-      console.log("Unable to parse address", pt.geo.full_name);
-    }
+    document.getElementById("address").innerText = pt.address;
     document.getElementById("value2020").innerText = dol(pt["2020"].total);
     document.getElementById("value2021").innerText = dol(pt["2021"].total);
     document.getElementById("diff").innerText = pct(pt.diff.total);

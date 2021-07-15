@@ -11,6 +11,8 @@ The code is gross and the naming is terrible, but here's roughly what the parts 
 
 The `map` directory contains a work-in-progress map of the revaluation data.
 
+`map2` contains a second cut at the map, available at [https://billmill.org/reassess/](https://billmill.org/reassess/)
+
 I have the `run.py`/`reval.mjs` split because it seems that any one process running for too long starts to have errors, so I settled on just launching a new process every 15 parcels to keep things moving. It's gross but it works(ish).
 
 For some reason that I cannot understand, neither puppeteer script works in headless mode, so I'm just leaving my spare computer running on the side, popping up all kinds of windows to do the scraping.

@@ -1,0 +1,124 @@
+<html>
+  <head>
+    <title>Portland Reassessment Map</title>
+    <link
+      rel="stylesheet"
+      href="//cdn.billmill.org/static/reassess/leaflet/leaflet.css"
+    />
+    <script src="//cdn.billmill.org/static/reassess/d3.v6.min.js"></script>
+    <script src="//cdn.billmill.org/static/reassess/leaflet/leaflet.js"></script>
+    <script src="map.js" type="module"></script>
+    <style>
+      body {
+        margin: auto;
+        width: 800;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 18px;
+      }
+      .container {
+        position: relative;
+      }
+      .infobox {
+        position: absolute;
+        width: 400px;
+        top: 20px;
+        left: 600px;
+        background: white;
+        border: 1px solid #aaa;
+        border-radius: 10px;
+        z-index: 9999;
+      }
+      table {
+        width: 100%;
+        max-width: 640px;
+        border-spacing: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 18px;
+        padding: 13px;
+        text-align: left;
+      }
+      .key {
+        width: 130px;
+      }
+      text {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+      }
+      #canvas {
+        width: 100vw;
+        height: 800;
+        position: relative;
+        left: calc(-50vw + 50%);
+      }
+    </style>
+  </head>
+
+  <body>
+    <p></p>
+    <h1>2021 Portland Reassesment Map</h1>
+    <div class="container">
+      <div class="infobox">
+        <table>
+          <tr>
+            <td class="key">address</td>
+            <td id="address"></td>
+          </tr>
+          <tr>
+            <td class="key">2020 value</td>
+            <td id="value2020"></td>
+          </tr>
+          <tr>
+            <td class="key">2021 value</td>
+            <td id="value2021"></td>
+          </tr>
+          <tr>
+            <td>diff</td>
+            <td id="diff"></td>
+          </tr>
+        </table>
+      </div>
+      <div id="canvas"></div>
+    </div>
+    <div style="margin-top: 40px">
+      <p>
+        If your house isn't on here, I apologize; I had to scrape the data from
+        <a
+          href="https://assessors.portlandmaine.gov/Search/CommonSearch.aspx?mode=REALPROP"
+          >the city's website</a
+        >
+        and some of my searches timed out.
+      </p>
+
+      <p>
+        To get the full data set I scraped, you can go to
+        <a href="https://github.com/llimllib/portland-revaluation/"
+          >the github repository</a
+        >
+        and download it.
+      </p>
+
+      <p>Some caveats:</p>
+      <ul>
+        <li>
+          I may have gotten some data wrong. Please
+          <a href="mailto:bill@billmill.org">email me</a> if you find any
+        </li>
+        <li>
+          Condos are not currently handled very well. I'm looking into doing
+          better on condo data.
+        </li>
+        <li>
+          The geocoding seems to be pretty good, but may be off in spots. The
+          data from the city didn't include geographic data, so I had to get it
+          from mapbox, and that process is not perfect.
+        </li>
+      </ul>
+
+      <p>
+        Thanks to
+        <a href="https://twitter.com/c_milneil">Christian Neal MilNeil</a> for
+        inspiring the design
+      </p>
+    </div>
+  </body>
+</html>

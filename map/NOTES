@@ -21,4 +21,3 @@ geo2topo Portland_ogr.geojson > portland.topojson
 
 oh hey I actually solved my problem by just... adding a fill=none style so I'm going to drop this line for now
 
-Jamie's email is: jamieisaacson@me.com

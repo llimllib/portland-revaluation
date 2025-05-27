@@ -1,4 +1,7 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
+// Import necessary modules
+import { readFileSync } from "node:fs";
+import sqlite3 from "node:sqlite3";
+import { open } from "node:sqlite/sqlite3";
 
 import puppeteer from "puppeteer";
 
@@ -52,11 +55,10 @@ async function getParcel(page, parcel) {
   );
 
   // go to assessment history
-  await page.waitForSelector(
-    "#sidemenu > .navigation > .unsel:nth-child(9) > a > span",
-    { timeout: TIMEOUT },
-  );
-  await page.click("#sidemenu > .navigation > .unsel:nth-child(9) > a > span");
+  await page.waitForSelector('a[href*="mode=assessment_history"] span', {
+    timeout: TIMEOUT,
+  });
+  await page.click('a[href*="mode=assessment_history"] span');
 
   // the stupid table has an id with a space in it
   await page.waitForSelector("[id='Assessment History'] tr", {
@@ -75,8 +77,33 @@ async function getParcel(page, parcel) {
   };
 }
 
+async function initDB(filename = "property_data.db") {
+  const db = await open({
+    filename,
+    driver: sqlite3.Database,
+  });
+
+  await db.exec(`CREATE TABLE IF NOT EXISTS properties (
+    parcel TEXT PRIMARY KEY,
+    parcel_id TEXT,
+    owner1 TEXT,
+    owner2 TEXT,
+    address TEXT,
+    parcel_type TEXT,
+    property_data TEXT,
+    error TEXT
+  )`);
+
+  return db;
+}
+
+async function existsInDB(db, parcel) {
+  return !!(await db.get("SELECT 1 FROM properties WHERE parcel = ?", parcel));
+}
+
 async function main() {
   const parcels = await JSON.parse(readFileSync("./parcels.json", "utf8"));
+  const db = await initDB();
 
   const browser = await puppeteer.launch({
     // for some reason I do not understand this script fails when run in
@@ -92,17 +119,10 @@ async function main() {
   );
   await agreeToDisclaimer(page);
 
-  const propertyData = "./property_data.json";
-  let properties;
   let currentSleep = SLEEP;
-  if (existsSync(propertyData)) {
-    properties = await JSON.parse(readFileSync(propertyData, "utf8"));
-  } else {
-    properties = {};
-  }
 
   for (const parcel of process.argv.slice(2)) {
-    if (properties.hasOwnProperty(parcel)) {
+    if (existsInDB(db, parcel)) {
       continue;
     }
 
@@ -110,10 +130,14 @@ async function main() {
     try {
       result = await getParcel(page, parcel);
     } catch (e) {
-      properties[parcel] = e;
+      // Store the error in the database
+      await db.run(
+        "INSERT OR REPLACE INTO properties (parcel, error) VALUES (?, ?)",
+        parcel,
+        JSON.stringify(e),
+      );
       console.log(currentSleep, e);
       await sleep(currentSleep);
-
       continue;
     }
 
@@ -123,15 +147,25 @@ async function main() {
     result["address"] = parcels[parcel][3];
     result["parcel_type"] = parcels[parcel][4];
 
-    properties[parcel] = result;
-    writeFileSync(propertyData, JSON.stringify(properties, null, 2));
+    // Store the result in the database
+    await db.run(
+      `INSERT OR REPLACE INTO properties 
+      (parcel, parcel_id, owner1, owner2, address, parcel_type, property_data, error) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+      parcel,
+      result.parcel_id,
+      result.owner1,
+      result.owner2,
+      result.address,
+      result.parcel_type,
+      JSON.stringify(result),
+    );
 
     currentSleep = SLEEP;
     await sleep(currentSleep);
   }
 
-  writeFileSync(propertyData, JSON.stringify(properties, null, 2));
-
+  await db.close();
   await browser.close();
 }
 

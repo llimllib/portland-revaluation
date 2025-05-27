@@ -25,7 +25,7 @@ async function getParcel(page, parcel) {
 
   await page.goto(
     "https://assessors.portlandmaine.gov/search/commonsearch.aspx?mode=parid",
-    { waitUntil: "domcontentloaded", timeout: TIMEOUT }
+    { waitUntil: "domcontentloaded", timeout: TIMEOUT },
   );
 
   await page.waitForSelector("#btSearch");
@@ -40,15 +40,23 @@ async function getParcel(page, parcel) {
   });
 
   // get the summary data on the parcel
-  let parcelData = await page.$$eval("#Parcel tr", trs => trs.map(tr => Array.from(tr.querySelectorAll("td")).map(td => td.innerText)))
-  let ownerData = await page.$$eval("#Owners tr", trs => trs.map(tr => Array.from(tr.querySelectorAll("td")).map(td => td.innerText)))
+  let parcelData = await page.$$eval("#Parcel tr", (trs) =>
+    trs.map((tr) =>
+      Array.from(tr.querySelectorAll("td")).map((td) => td.innerText),
+    ),
+  );
+  let ownerData = await page.$$eval("#Owners tr", (trs) =>
+    trs.map((tr) =>
+      Array.from(tr.querySelectorAll("td")).map((td) => td.innerText),
+    ),
+  );
 
   // go to assessment history
   await page.waitForSelector(
-    "#sidemenu > .navigation > .unsel:nth-child(8) > a > span",
-    { timeout: TIMEOUT }
+    "#sidemenu > .navigation > .unsel:nth-child(9) > a > span",
+    { timeout: TIMEOUT },
   );
-  await page.click("#sidemenu > .navigation > .unsel:nth-child(8) > a > span");
+  await page.click("#sidemenu > .navigation > .unsel:nth-child(9) > a > span");
 
   // the stupid table has an id with a space in it
   await page.waitForSelector("[id='Assessment History'] tr", {
@@ -56,20 +64,18 @@ async function getParcel(page, parcel) {
   });
   let assessments = await page.$$eval("[id='Assessment History'] tr", (trs) =>
     trs.map((tr) =>
-      Array.from(tr.querySelectorAll("td")).map((td) => td.innerText)
-    )
+      Array.from(tr.querySelectorAll("td")).map((td) => td.innerText),
+    ),
   );
 
-  return new Promise((resolve) => {
-    resolve({
-      assessments: assessments,
-      parcelData: parcelData,
-      ownerData: ownerData,
-    });
-  });
+  return {
+    assessments: assessments,
+    parcelData: parcelData,
+    ownerData: ownerData,
+  };
 }
 
-(async () => {
+async function main() {
   const parcels = await JSON.parse(readFileSync("./parcels.json", "utf8"));
 
   const browser = await puppeteer.launch({
@@ -82,7 +88,7 @@ async function getParcel(page, parcel) {
 
   await page.goto(
     "https://assessors.portlandmaine.gov/search/commonsearch.aspx?mode=parid",
-    { waitUntil: "domcontentloaded", timeout: TIMEOUT }
+    { waitUntil: "domcontentloaded", timeout: TIMEOUT },
   );
   await agreeToDisclaimer(page);
 
@@ -127,4 +133,6 @@ async function getParcel(page, parcel) {
   writeFileSync(propertyData, JSON.stringify(properties, null, 2));
 
   await browser.close();
-})();
+}
+
+await main();

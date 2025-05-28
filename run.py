@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from itertools import zip_longest
 import json
+import os
 import shlex
 import subprocess
 
@@ -21,15 +22,17 @@ def sh(cmd):
 
 
 parcels = json.load(open("parcels.json"))
-property_data = json.load(open("property_data.json"))
 
-# remove all keys in property_data from parcels; we don't want to repeat
-# the scrape
-for key in property_data:
-    try:
-        del parcels[key]
-    except KeyError:
-        continue
+if os.path.isfile("property_data.json"):
+    property_data = json.load(open("property_data.json"))
+
+    # remove all keys in property_data from parcels; we don't want to repeat
+    # the scrape
+    for key in property_data:
+        try:
+            del parcels[key]
+        except KeyError:
+            continue
 
 for parcels in grouper(parcels, 15):
     args = " ".join(f'"{p}"' for p in parcels if p)

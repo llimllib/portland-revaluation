@@ -130,9 +130,19 @@ function existsInDB(db, parcel) {
   return !!result;
 }
 
+function hasError(db, parcel) {
+  const result = db
+    .prepare("SELECT error FROM properties WHERE parcel = ?")
+    .get(parcel);
+  return result && result.error !== null;
+}
+
 function storeAssessments(db, parcel, assessments) {
   if (!assessments || !Array.isArray(assessments) || assessments.length <= 1)
     return 0;
+
+  // First, delete any existing assessments for this parcel
+  db.prepare("DELETE FROM assessments WHERE parcel = ?").run(parcel);
 
   let count = 0;
   const stmt = db.prepare(`
@@ -193,9 +203,14 @@ async function main() {
 
   let currentSleep = SLEEP;
   let assessmentCount = 0;
+  let errorCount = 0;
+  let successCount = 0;
+  let fixedCount = 0;
 
   for (const parcel of process.argv.slice(2)) {
-    if (existsInDB(db, parcel)) {
+    const wasErrored = hasError(db, parcel);
+    if (existsInDB(db, parcel) && !wasErrored) {
+      console.log(`Skipping ${parcel} - already exists and has no errors`);
       continue;
     }
 
@@ -207,18 +222,19 @@ async function main() {
       db.prepare(
         "INSERT OR REPLACE INTO properties (parcel, error) VALUES (?, ?)",
       ).run(parcel, JSON.stringify(e));
-      console.log(currentSleep, e);
+      console.log(`Error processing ${parcel}:`, e);
+      errorCount++;
       await sleep(currentSleep);
       continue;
     }
 
-    result["parcel_id"] = parcels[parcel][0];
-    result["owner1"] = parcels[parcel][1];
-    result["owner2"] = parcels[parcel][2];
-    result["address"] = parcels[parcel][3];
-    result["parcel_type"] = parcels[parcel][4];
+    result["parcel_id"] = parcels[parcel] ? parcels[parcel][0] : "";
+    result["owner1"] = parcels[parcel] ? parcels[parcel][1] : "";
+    result["owner2"] = parcels[parcel] ? parcels[parcel][2] : "";
+    result["address"] = parcels[parcel] ? parcels[parcel][3] : "";
+    result["parcel_type"] = parcels[parcel] ? parcels[parcel][4] : "";
 
-    // Store the result in the database
+    // Store the result in the database, explicitly setting error to NULL
     db.prepare(
       `INSERT OR REPLACE INTO properties 
       (parcel, parcel_id, owner1, owner2, address, parcel_type, property_data, error) 
@@ -234,8 +250,15 @@ async function main() {
     );
 
     // Store the assessments in the separate table
-    assessmentCount += storeAssessments(db, parcel, result.assessments);
+    const newAssessments = storeAssessments(db, parcel, result.assessments);
+    assessmentCount += newAssessments;
 
+    if (wasErrored) {
+      fixedCount++;
+      console.log(`Fixed previously errored parcel: ${parcel}`);
+    }
+
+    successCount++;
     currentSleep = SLEEP;
     await sleep(currentSleep);
   }
@@ -243,8 +266,12 @@ async function main() {
   db.close();
   await browser.close();
 
-  console.log(`Processed ${process.argv.length - 2} parcels`);
-  console.log(`Added ${assessmentCount} assessment records`);
+  console.log(`\nProcess summary:`);
+  console.log(`- Processed ${process.argv.length - 2} parcels`);
+  console.log(`- Successfully processed: ${successCount}`);
+  console.log(`- Fixed previously errored: ${fixedCount}`);
+  console.log(`- New errors: ${errorCount}`);
+  console.log(`- Added ${assessmentCount} assessment records`);
 }
 
 await main();

@@ -1,7 +1,5 @@
-// Import necessary modules
 import { readFileSync } from "node:fs";
-import sqlite3 from "node:sqlite3";
-import { open } from "node:sqlite/sqlite3";
+import { DatabaseSync } from "node:sqlite";
 
 import puppeteer from "puppeteer";
 
@@ -15,6 +13,12 @@ function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+// Helper function to convert currency string to numeric value
+function currencyToNumber(value) {
+  if (!value || value === "") return 0;
+  return parseFloat(value.replace(/[\$,]/g, ""));
 }
 
 async function agreeToDisclaimer(page) {
@@ -77,13 +81,21 @@ async function getParcel(page, parcel) {
   };
 }
 
-async function initDB(filename = "property_data.db") {
-  const db = await open({
-    filename,
-    driver: sqlite3.Database,
-  });
+function initDB(filename = "property_data.db") {
+  // Use synchronous database connection
+  const db = new DatabaseSync(filename);
 
-  await db.exec(`CREATE TABLE IF NOT EXISTS properties (
+  // Set pragmas for better performance and data integrity
+  db.exec(`
+    PRAGMA foreign_keys = ON;
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA cache_size = -10000;
+    PRAGMA temp_store = MEMORY;
+  `);
+
+  // Create properties table (same as original)
+  db.exec(`CREATE TABLE IF NOT EXISTS properties (
     parcel TEXT PRIMARY KEY,
     parcel_id TEXT,
     owner1 TEXT,
@@ -94,16 +106,76 @@ async function initDB(filename = "property_data.db") {
     error TEXT
   )`);
 
+  // Create assessments table
+  db.exec(`CREATE TABLE IF NOT EXISTS assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parcel TEXT,
+    year INTEGER,
+    land NUMERIC,
+    building NUMERIC,
+    total NUMERIC,
+    standard_exemption NUMERIC,
+    other_exemption NUMERIC,
+    taxable_value NUMERIC,
+    FOREIGN KEY (parcel) REFERENCES properties(parcel)
+  )`);
+
   return db;
 }
 
-async function existsInDB(db, parcel) {
-  return !!(await db.get("SELECT 1 FROM properties WHERE parcel = ?", parcel));
+function existsInDB(db, parcel) {
+  const result = db
+    .prepare("SELECT 1 FROM properties WHERE parcel = ?")
+    .get(parcel);
+  return !!result;
+}
+
+function storeAssessments(db, parcel, assessments) {
+  if (!assessments || !Array.isArray(assessments) || assessments.length <= 1)
+    return 0;
+
+  let count = 0;
+  const stmt = db.prepare(`
+    INSERT INTO assessments 
+    (parcel, year, land, building, total, standard_exemption, other_exemption, taxable_value)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  // Skip the header row (index 0)
+  for (let i = 1; i < assessments.length; i++) {
+    const assessment = assessments[i];
+    // Skip empty rows or incomplete data
+    if (assessment.length < 7 || !assessment[0]) continue;
+
+    // Extract and clean data
+    const year = parseInt(assessment[0]) || 0;
+    const land = currencyToNumber(assessment[1]);
+    const building = currencyToNumber(assessment[2]);
+    const total = currencyToNumber(assessment[3]);
+    const standardExemption = currencyToNumber(assessment[4]);
+    const otherExemption = currencyToNumber(assessment[5]);
+    const taxableValue = currencyToNumber(assessment[6]);
+
+    // Insert assessment record
+    stmt.run(
+      parcel,
+      year,
+      land,
+      building,
+      total,
+      standardExemption,
+      otherExemption,
+      taxableValue,
+    );
+    count++;
+  }
+
+  return count;
 }
 
 async function main() {
-  const parcels = await JSON.parse(readFileSync("./parcels.json", "utf8"));
-  const db = await initDB();
+  const parcels = JSON.parse(readFileSync("./parcels.json", "utf8"));
+  const db = initDB();
 
   const browser = await puppeteer.launch({
     // for some reason I do not understand this script fails when run in
@@ -120,6 +192,7 @@ async function main() {
   await agreeToDisclaimer(page);
 
   let currentSleep = SLEEP;
+  let assessmentCount = 0;
 
   for (const parcel of process.argv.slice(2)) {
     if (existsInDB(db, parcel)) {
@@ -131,11 +204,9 @@ async function main() {
       result = await getParcel(page, parcel);
     } catch (e) {
       // Store the error in the database
-      await db.run(
+      db.prepare(
         "INSERT OR REPLACE INTO properties (parcel, error) VALUES (?, ?)",
-        parcel,
-        JSON.stringify(e),
-      );
+      ).run(parcel, JSON.stringify(e));
       console.log(currentSleep, e);
       await sleep(currentSleep);
       continue;
@@ -148,10 +219,11 @@ async function main() {
     result["parcel_type"] = parcels[parcel][4];
 
     // Store the result in the database
-    await db.run(
+    db.prepare(
       `INSERT OR REPLACE INTO properties 
       (parcel, parcel_id, owner1, owner2, address, parcel_type, property_data, error) 
       VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+    ).run(
       parcel,
       result.parcel_id,
       result.owner1,
@@ -161,12 +233,18 @@ async function main() {
       JSON.stringify(result),
     );
 
+    // Store the assessments in the separate table
+    assessmentCount += storeAssessments(db, parcel, result.assessments);
+
     currentSleep = SLEEP;
     await sleep(currentSleep);
   }
 
-  await db.close();
+  db.close();
   await browser.close();
+
+  console.log(`Processed ${process.argv.length - 2} parcels`);
+  console.log(`Added ${assessmentCount} assessment records`);
 }
 
 await main();

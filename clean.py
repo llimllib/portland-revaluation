@@ -1,6 +1,8 @@
-#!/usr/bin/env
+#!/usr/bin/env python3
 import json
 import re
+import sqlite3
+import os
 
 
 def tryn(maybe_n):
@@ -19,66 +21,147 @@ def remove_whitespace(s):
     return re.sub(r"\s", "", s)
 
 
-def dictize(list_of_pairs):
-    data = {}
-    for kv in list_of_pairs:
-        if kv == [""]:
-            continue
-        k, v = kv
-        try:
-            k = remove_whitespace(k)
-        except TypeError:
-            print(k, type(k))
-            raise
+# Connect to the SQLite database
+db_path = "property_data.db"
+if not os.path.exists(db_path):
+    print(f"Database file {db_path} not found!")
+    exit(1)
 
-        # if the value has nothing but whitespace, set it to empty if there's
-        # a key, then otherwise skip ahead
-        if not remove_whitespace(v):
-            if k:
-                data[k] = ""
-            continue
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
 
-        # skip the "verify with legal" rows
-        if v.startswith("Verify"):
-            continue
+# Get all properties without errors
+cursor = conn.cursor()
+cursor.execute("SELECT * FROM properties WHERE error IS NULL")
+properties = cursor.fetchall()
 
-        if k:
-            data[k] = tryn(v)
-            prev_k = k
-        else:
-            # if there wasn't a key, add this line to the previous key.
-            # Convert to list if necessary
-            if isinstance(data[prev_k], list):
-                data[prev_k].append(tryn(v))
-            else:
-                data[prev_k] = [data[prev_k], tryn(v)]
+# Get all property details
+cursor.execute("SELECT * FROM property_details")
+property_details_rows = {row["parcel"]: row for row in cursor.fetchall()}
 
-    return data
+# Get all owner details
+cursor.execute("SELECT * FROM owner_details")
+owner_details_rows = {row["parcel"]: row for row in cursor.fetchall()}
 
+# Get all assessments
+cursor.execute(
+    """
+    SELECT parcel, year, land, building, total, 
+           standard_exemption, other_exemption, taxable_value 
+    FROM assessments
+    ORDER BY parcel, year DESC
+"""
+)
+assessments = cursor.fetchall()
 
-property_data = json.load(open("property_data.json"))
+# Group assessments by parcel
+assessments_by_parcel = {}
+for row in assessments:
+    parcel = row["parcel"]
+    if parcel not in assessments_by_parcel:
+        assessments_by_parcel[parcel] = []
 
+    # Format as in the original format - string with $ and commas
+    assessment_row = [
+        str(row["year"]),
+        f"${row['land']:,.0f}",
+        f"${row['building']:,.0f}",
+        f"${row['total']:,.0f}",
+        f"${row['standard_exemption']:,.0f}",
+        f"${row['other_exemption']:,.0f}",
+        f"${row['taxable_value']:,.0f}",
+    ]
+    assessments_by_parcel[parcel].append(assessment_row)
+
+# Process each property
 cleaned = {}
 errors = 0
-for parcel_id, data in property_data.items():
-    # I don't have a good data type for errors, so assume it's an error if
-    # assessments isn't in there
-    if "assessments" not in data:
+success_count = 0
+
+for prop in properties:
+    parcel_id = prop["parcel"]
+
+    # Skip properties with no assessments
+    if parcel_id not in assessments_by_parcel:
         errors += 1
         continue
 
     cleaned[parcel_id] = {}
 
-    cleaned[parcel_id]["assessments"] = list(
-        filter(lambda y: len(y) == 7, data["assessments"][1:])
-    )
+    # Add assessments
+    cleaned[parcel_id]["assessments"] = assessments_by_parcel[parcel_id]
 
-    cleaned[parcel_id]["parcelData"] = dictize(data["parcelData"])
-    cleaned[parcel_id]["ownerData"] = dictize(data["ownerData"])
-    # I'm going to do this in a separate script
-    # cleaned[parcel_id]["geo"] = geocode(
-    #     cleaned[parcel_id]["parcelData"]["PropertyLocation"]
-    # )
+    # Build parcelData dictionary
+    parcel_data = {
+        "ParcelID": parcel_id,
+        "PropertyLocation": prop["address"] or "",
+        "LandUseCode": prop["parcel_type"] or "",
+    }
 
-print(f"{errors} errors, {len(property_data)-errors} nominal")
+    # Add property details if available
+    if parcel_id in property_details_rows:
+        details = property_details_rows[parcel_id]
+        if details["unit"]:
+            parcel_data["Unit"] = details["unit"].strip() if details["unit"] else ""
+        if details["living_unit"]:
+            parcel_data["LivingUnit"] = details["living_unit"]
+        if details["land_area"]:
+            parcel_data["LandArea(acreage)"] = details["land_area"]
+        if details["notes"]:
+            parcel_data["Notes"] = details["notes"]
+        if details["utilities"]:
+            parcel_data["Utilities"] = details["utilities"]
+
+        # Add any additional fields
+        if details["additional_fields"]:
+            try:
+                additional = json.loads(details["additional_fields"])
+                for key, value in additional.items():
+                    # Remove whitespace from keys for consistency
+                    parcel_data[remove_whitespace(key)] = tryn(value)
+            except:
+                pass
+
+    cleaned[parcel_id]["parcelData"] = parcel_data
+
+    # Build ownerData dictionary
+    owner_data = {"Owner": prop["owner1"] or ""}
+
+    if prop["owner2"]:
+        owner_data["Owner2"] = prop["owner2"]
+
+    # Add owner details if available
+    if parcel_id in owner_details_rows:
+        details = owner_details_rows[parcel_id]
+        if details["mailing_address"]:
+            owner_data["Address"] = details["mailing_address"]
+        if details["city_state_zip"]:
+            owner_data["City,State,Zip"] = details["city_state_zip"]
+        if details["deed_date"]:
+            owner_data["DeedDate"] = details["deed_date"]
+        if details["book"]:
+            owner_data["Book"] = details["book"]
+        if details["page"]:
+            owner_data["Page"] = details["page"]
+
+        # Add any additional fields
+        if details["additional_fields"]:
+            try:
+                additional = json.loads(details["additional_fields"])
+                for key, value in additional.items():
+                    # Remove whitespace from keys for consistency
+                    owner_data[remove_whitespace(key)] = tryn(value)
+            except:
+                pass
+
+    cleaned[parcel_id]["ownerData"] = owner_data
+    success_count += 1
+
+# Report statistics
+print(f"{errors} errors, {success_count} successful properties processed")
+
+# Write the cleaned data to JSON
 json.dump(cleaned, open("cleaned_data.json", "w"), indent=2)
+print(f"Cleaned data written to cleaned_data.json")
+
+conn.close()

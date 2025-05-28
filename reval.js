@@ -81,6 +81,135 @@ async function getParcel(page, parcel) {
   };
 }
 
+// Helper function to extract structured data from parcelData
+function extractParcelDetails(parcelData) {
+  if (!parcelData || !Array.isArray(parcelData) || parcelData.length === 0) {
+    return undefined;
+  }
+
+  const details = {
+    unit: null,
+    livingUnit: null,
+    landArea: null,
+    notes: [],
+    utilities: [],
+    additionalFields: {},
+  };
+
+  let currentSection = null;
+
+  for (const row of parcelData) {
+    if (!row || row.length < 2 || !row[0]) continue;
+
+    const key = row[0].trim();
+    const value = row[1] || "";
+
+    switch (key) {
+      case "Unit":
+        details.unit = String(value);
+        break;
+      case "Living Unit":
+        details.livingUnit = String(value);
+        break;
+      case "Land Area (acreage)":
+        details.landArea = String(value);
+        break;
+      case "Notes":
+        details.notes.push(String(value));
+        currentSection = "notes";
+        break;
+      case "Utilities":
+        details.utilities.push(String(value));
+        currentSection = "utilities";
+        break;
+      case " ":
+        if (currentSection === "notes") details.notes.push(String(value));
+        else if (currentSection === "utilities")
+          details.utilities.push(String(value));
+        break;
+      default:
+        if (
+          key !== "Parcel ID" &&
+          key !== "Property Location" &&
+          key !== "Land Use Code" &&
+          !key.startsWith("Verify")
+        ) {
+          details.additionalFields[key] = String(value);
+        }
+    }
+  }
+
+  return {
+    unit: details.unit,
+    livingUnit: details.livingUnit,
+    landArea: details.landArea,
+    notes: details.notes.length > 0 ? details.notes.join("\n").trim() : null,
+    utilities:
+      details.utilities.length > 0 ? details.utilities.join("\n").trim() : null,
+    additionalFields:
+      Object.keys(details.additionalFields).length > 0
+        ? JSON.stringify(details.additionalFields)
+        : null,
+  };
+}
+
+// Helper function to extract structured data from ownerData
+function extractOwnerDetails(ownerData) {
+  if (!ownerData || !Array.isArray(ownerData) || ownerData.length === 0) {
+    return undefined;
+  }
+
+  const details = {
+    mailingAddress: null,
+    cityStateZip: null,
+    deedDate: null,
+    book: null,
+    page: null,
+    additionalFields: {},
+  };
+
+  for (const row of ownerData) {
+    if (!row || row.length < 2 || !row[0]) continue;
+
+    const key = row[0].trim();
+    const value = row[1] || "";
+
+    switch (key) {
+      case "Address":
+        details.mailingAddress = String(value);
+        break;
+      case "City, State, Zip":
+        details.cityStateZip = String(value);
+        break;
+      case "Deed Date":
+        details.deedDate = String(value);
+        break;
+      case "Book":
+        details.book = String(value);
+        break;
+      case "Page":
+        details.page = String(value);
+        break;
+      default:
+        if (key !== "Owner") {
+          details.additionalFields[key] = String(value);
+        }
+    }
+  }
+
+  return {
+    mailingAddress: details.mailingAddress,
+    cityStateZip: details.cityStateZip,
+    deedDate: details.deedDate,
+    book: details.book,
+    page: details.page,
+    additionalFields:
+      Object.keys(details.additionalFields).length > 0
+        ? JSON.stringify(details.additionalFields)
+        : null,
+  };
+}
+
 function initDB(filename = "property_data.db") {
   // Use synchronous database connection
   const db = new DatabaseSync(filename);
@@ -94,7 +223,7 @@ function initDB(filename = "property_data.db") {
     PRAGMA temp_store = MEMORY;
   `);
 
-  // Create properties table (same as original)
+  // Create properties table without property_data column
   db.exec(`CREATE TABLE IF NOT EXISTS properties (
     parcel TEXT PRIMARY KEY,
     parcel_id TEXT,
@@ -102,11 +231,34 @@ function initDB(filename = "property_data.db") {
     owner2 TEXT,
     address TEXT,
     parcel_type TEXT,
-    property_data TEXT,
     error TEXT
   )`);
 
-  // Create assessments table
+  // Create the property_details table
+  db.exec(`CREATE TABLE IF NOT EXISTS property_details (
+    parcel TEXT PRIMARY KEY,
+    unit TEXT,
+    living_unit TEXT,
+    land_area NUMERIC,
+    notes TEXT,
+    utilities TEXT,
+    additional_fields TEXT,
+    FOREIGN KEY (parcel) REFERENCES properties(parcel)
+  )`);
+
+  // Create the owner_details table
+  db.exec(`CREATE TABLE IF NOT EXISTS owner_details (
+    parcel TEXT PRIMARY KEY,
+    mailing_address TEXT,
+    city_state_zip TEXT,
+    deed_date TEXT,
+    book TEXT,
+    page TEXT,
+    additional_fields TEXT,
+    FOREIGN KEY (parcel) REFERENCES properties(parcel)
+  )`);
+
+  // Create the assessments table
   db.exec(`CREATE TABLE IF NOT EXISTS assessments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     parcel TEXT,
@@ -228,37 +380,79 @@ async function main() {
       continue;
     }
 
-    result["parcel_id"] = parcels[parcel] ? parcels[parcel][0] : "";
-    result["owner1"] = parcels[parcel] ? parcels[parcel][1] : "";
-    result["owner2"] = parcels[parcel] ? parcels[parcel][2] : "";
-    result["address"] = parcels[parcel] ? parcels[parcel][3] : "";
-    result["parcel_type"] = parcels[parcel] ? parcels[parcel][4] : "";
+    // Extract data from parcels.json
+    const parcelId = parcels[parcel] ? parcels[parcel][0] : "";
+    const owner1 = parcels[parcel] ? parcels[parcel][1] : "";
+    const owner2 = parcels[parcel] ? parcels[parcel][2] : "";
+    const address = parcels[parcel] ? parcels[parcel][3] : "";
+    const parcelType = parcels[parcel] ? parcels[parcel][4] : "";
 
-    // Store the result in the database, explicitly setting error to NULL
-    db.prepare(
-      `INSERT OR REPLACE INTO properties 
-      (parcel, parcel_id, owner1, owner2, address, parcel_type, property_data, error) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
-    ).run(
-      parcel,
-      result.parcel_id,
-      result.owner1,
-      result.owner2,
-      result.address,
-      result.parcel_type,
-      JSON.stringify(result),
-    );
+    try {
+      // Store the basic property info in the database
+      db.prepare(
+        `
+        INSERT OR REPLACE INTO properties 
+        (parcel, parcel_id, owner1, owner2, address, parcel_type, error) 
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
+      `,
+      ).run(parcel, parcelId, owner1, owner2, address, parcelType);
 
-    // Store the assessments in the separate table
-    const newAssessments = storeAssessments(db, parcel, result.assessments);
-    assessmentCount += newAssessments;
+      const propertyDetails = extractParcelDetails(result.parcelData);
+      if (propertyDetails) {
+        db.prepare(
+          `
+        INSERT OR REPLACE INTO property_details
+        (parcel, unit, living_unit, land_area, notes, utilities, additional_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+        ).run(
+          parcel,
+          propertyDetails.unit,
+          propertyDetails.livingUnit,
+          propertyDetails.landArea,
+          propertyDetails.notes,
+          propertyDetails.utilities,
+          propertyDetails.additionalFields,
+        );
+      }
 
-    if (wasErrored) {
-      fixedCount++;
-      console.log(`Fixed previously errored parcel: ${parcel}`);
+      const ownerDetails = extractOwnerDetails(result.ownerData);
+      if (ownerDetails) {
+        db.prepare(
+          `
+        INSERT OR REPLACE INTO owner_details
+        (parcel, mailing_address, city_state_zip, deed_date, book, page, additional_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+        ).run(
+          parcel,
+          ownerDetails.mailingAddress,
+          ownerDetails.cityStateZip,
+          ownerDetails.deedDate,
+          ownerDetails.book,
+          ownerDetails.page,
+          ownerDetails.additionalFields,
+        );
+      }
+
+      // Store the assessments in the separate table
+      const newAssessments = storeAssessments(db, parcel, result.assessments);
+      assessmentCount += newAssessments;
+
+      if (wasErrored) {
+        fixedCount++;
+        console.log(`Fixed previously errored parcel: ${parcel}`);
+      }
+
+      successCount++;
+    } catch (e) {
+      console.error(`Error storing data for parcel ${parcel}:`, e);
+      db.prepare(
+        "INSERT OR REPLACE INTO properties (parcel, error) VALUES (?, ?)",
+      ).run(parcel, JSON.stringify(e));
+      errorCount++;
     }
 
-    successCount++;
     currentSleep = SLEEP;
     await sleep(currentSleep);
   }

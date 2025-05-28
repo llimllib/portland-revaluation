@@ -112,11 +112,6 @@ def main():
             print(f"Batch {i+1} complete!")
         except subprocess.CalledProcessError as e:
             print(f"Error during processing batch {i+1}: {e}")
-            if i < len(batches) - 1:
-                retry = input("Continue with next batch? (y/n): ")
-                if retry.lower() != "y":
-                    print("Remaining batches cancelled.")
-                    break
 
     print("\nAll processing complete!")
 

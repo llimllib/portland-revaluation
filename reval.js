@@ -214,63 +214,15 @@ function initDB(filename = "property_data.db") {
   // Use synchronous database connection
   const db = new DatabaseSync(filename);
 
-  // Set pragmas for better performance and data integrity
-  db.exec(`
-    PRAGMA foreign_keys = ON;
-    PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = NORMAL;
-    PRAGMA cache_size = -10000;
-    PRAGMA temp_store = MEMORY;
-  `);
-
-  // Create properties table without property_data column
-  db.exec(`CREATE TABLE IF NOT EXISTS properties (
-    parcel TEXT PRIMARY KEY,
-    parcel_id TEXT,
-    owner1 TEXT,
-    owner2 TEXT,
-    address TEXT,
-    parcel_type TEXT,
-    error TEXT
-  )`);
-
-  // Create the property_details table
-  db.exec(`CREATE TABLE IF NOT EXISTS property_details (
-    parcel TEXT PRIMARY KEY,
-    unit TEXT,
-    living_unit TEXT,
-    land_area NUMERIC,
-    notes TEXT,
-    utilities TEXT,
-    additional_fields TEXT,
-    FOREIGN KEY (parcel) REFERENCES properties(parcel)
-  )`);
-
-  // Create the owner_details table
-  db.exec(`CREATE TABLE IF NOT EXISTS owner_details (
-    parcel TEXT PRIMARY KEY,
-    mailing_address TEXT,
-    city_state_zip TEXT,
-    deed_date TEXT,
-    book TEXT,
-    page TEXT,
-    additional_fields TEXT,
-    FOREIGN KEY (parcel) REFERENCES properties(parcel)
-  )`);
-
-  // Create the assessments table
-  db.exec(`CREATE TABLE IF NOT EXISTS assessments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    parcel TEXT,
-    year INTEGER,
-    land NUMERIC,
-    building NUMERIC,
-    total NUMERIC,
-    standard_exemption NUMERIC,
-    other_exemption NUMERIC,
-    taxable_value NUMERIC,
-    FOREIGN KEY (parcel) REFERENCES properties(parcel)
-  )`);
+  console.log("Applying database schema from schema.sql...");
+  try {
+    const schemaSQL = readFileSync("./schema.sql", "utf8");
+    db.exec(schemaSQL);
+    console.log("Database schema applied successfully");
+  } catch (error) {
+    console.error("Error applying database schema:", error);
+    process.exit(1);
+  }
 
   return db;
 }

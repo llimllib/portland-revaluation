@@ -2,13 +2,16 @@ const pct = d3.format(".0%");
 const dol = d3.format(",r");
 
 function map(data) {
+  data.features.forEach(
+    (d) => (d.properties.diff.total = d.properties.diff.total - 1),
+  );
   const scale = d3
     .scaleSequential(
       [
         d3.quantile(data.features, 0.05, (d) => d.properties.diff.total),
         d3.quantile(data.features, 0.95, (d) => d.properties.diff.total),
       ],
-      d3.interpolatePiYG
+      (t) => d3.interpolateRdYlBu(1 - t),
     )
     .clamp(true);
 
@@ -26,13 +29,13 @@ function map(data) {
       zoomOffset: -1,
       accessToken:
         "pk.eyJ1IjoibGxpbWxsaWIiLCJhIjoiY2lldXJ1Nzh2MHBvOXQ2bTN1cTYxZHdsNSJ9.2WMSERArMbRJRJDyll5LiQ",
-    }
+    },
   ).addTo(map);
 
   let currentRadius = 2;
 
   const pointLayer = L.geoJSON(data, {
-    pointToLayer: function(pt, latlng) {
+    pointToLayer: function (pt, latlng) {
       const color = scale(pt.properties.diff.total);
       const marker = L.circleMarker(latlng, {
         radius: currentRadius,
@@ -46,20 +49,20 @@ function map(data) {
       marker.on("mouseover", () => {
         document.getElementById("address").innerText = pt.properties.address;
         document.getElementById("value2020").innerText = dol(
-          pt.properties.y2020.total
+          pt.properties.y2020.total,
         );
         document.getElementById("value2021").innerText = dol(
-          pt.properties.y2021.total
+          pt.properties.y2021.total,
         );
         document.getElementById("diff").innerText = pct(
-          pt.properties.diff.total
+          pt.properties.diff.total,
         );
       });
       return marker;
     },
   }).addTo(map);
 
-  map.on("zoomend", function(e) {
+  map.on("zoomend", function (e) {
     console.log("zoomed", map.getZoom());
     let r;
     switch (map.getZoom()) {
@@ -100,7 +103,7 @@ function map(data) {
   });
 
   let legendControl = L.control({ position: "bottomleft" });
-  legendControl.onAdd = function() {
+  legendControl.onAdd = function () {
     // L.DomUtil.create("div", "legend");
     return legendSvg;
   };
@@ -165,7 +168,7 @@ function legend({
     x = color
       .copy()
       .rangeRound(
-        d3.quantize(d3.interpolate(marginLeft, width - marginRight), n)
+        d3.quantize(d3.interpolate(marginLeft, width - marginRight), n),
       );
 
     svg
@@ -178,8 +181,8 @@ function legend({
       .attr(
         "xlink:href",
         ramp(
-          color.copy().domain(d3.quantize(d3.interpolate(0, 1), n))
-        ).toDataURL()
+          color.copy().domain(d3.quantize(d3.interpolate(0, 1), n)),
+        ).toDataURL(),
       );
   }
 
@@ -194,7 +197,7 @@ function legend({
         range() {
           return [marginLeft, width - marginRight];
         },
-      }
+      },
     );
 
     svg
@@ -278,8 +281,8 @@ function legend({
 
     //tickAdjust = () => { };
     //let tickAdjust = g => g.selectAll(".tick line").attr("y1", marginTop + marginBottom - height);
-    tickAdjust = function(g) {
-      g.selectAll(".tick").each(function() {
+    tickAdjust = function (g) {
+      g.selectAll(".tick").each(function () {
         gtick = d3.select(this);
         gtick.attr("transform", gtick.attr("transform").replace("(0,", "(20,"));
       });
@@ -292,14 +295,14 @@ function legend({
       "transform",
       legendType == "ordinal"
         ? "translate(0,0)"
-        : `translate(0, ${height - marginBottom})`
+        : `translate(0, ${height - marginBottom})`,
     )
     .call(
       (legendType == "ordinal" ? d3.axisRight(x) : d3.axisBottom(x))
         .ticks(ticks, typeof tickFormat === "string" ? tickFormat : undefined)
         .tickFormat(typeof tickFormat === "function" ? tickFormat : undefined)
         .tickSize(tickSize)
-        .tickValues(tickValues)
+        .tickValues(tickValues),
     )
     .call(tickAdjust)
     .call((g) => g.select(".domain").remove())
@@ -309,13 +312,13 @@ function legend({
         .attr("x", marginLeft)
         .attr(
           "y",
-          legendType == "ordinal" ? 10 : marginTop + marginBottom - height - 6
+          legendType == "ordinal" ? 10 : marginTop + marginBottom - height - 6,
         )
         .attr("fill", "currentColor")
         .attr("text-anchor", "start")
         .attr("font-weight", "bold")
         .attr("class", "legend-title")
-        .text(title)
+        .text(title),
     );
 
   return svg.node();
